@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/vikstrous/zengge-lightcontrol/control"
+	"github.com/vikstrous/zengge-lightcontrol/local"
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -122,6 +124,17 @@ func fetchEvents(client *http.Client) (times []*BusyTime) {
 	return
 }
 
+func light(on bool) {
+	host := "192.168.1.103:5577"
+	transport, err := local.NewTransport(host)
+	if err != nil {
+		log.Panicf("Failed to connect. %s", err)
+	}
+
+	controller := &control.Controller{transport}
+	controller.SetPower(on)
+}
+
 func main() {
 	b, err := ioutil.ReadFile("credentials.json")
 	if err != nil {
@@ -146,4 +159,5 @@ func main() {
 		}
 	}
 	fmt.Printf("Should light be on: %v\n", shouldBeOn)
+	light(shouldBeOn)
 }
