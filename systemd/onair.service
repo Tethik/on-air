@@ -1,0 +1,6 @@
+[Unit]
+Description=A description of what your service does.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/on-air

@@ -135,7 +135,21 @@ func light(on bool) {
 	controller.SetPower(on)
 }
 
+func panicIf(err error) {
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
 func main() {
+	home, err := os.UserHomeDir()
+	panicIf(err)
+
+	dir := fmt.Sprintf("%v/onair/", home)
+	log.Println(dir)
+	err = os.Chdir(dir)
+	panicIf(err)
+
 	b, err := ioutil.ReadFile("credentials.json")
 	if err != nil {
 		log.Fatalf("Unable to read client secret file: %v", err)
@@ -151,13 +165,21 @@ func main() {
 	busyTimes := fetchEvents(client)
 	fmt.Printf("%v events found\n", len(busyTimes))
 	shouldBeOn := false
+	timeToLightBefore := 30
+	var secondsToWait int
 	now := time.Now()
 	for _, bt := range busyTimes {
-		if bt.Start.Before(now) && bt.End.After(now) {
+		diff := bt.Start.Sub(now.Add(5 * time.Minute))
+		seconds := int(diff.Seconds())
+		if seconds < timeToLightBefore && bt.End.After(now) {
 			shouldBeOn = true
+			secondsToWait = seconds - 30
 			break
 		}
 	}
 	fmt.Printf("Should light be on: %v\n", shouldBeOn)
+	if shouldBeOn && secondsToWait > 0 {
+		time.Sleep(time.Duration(secondsToWait) * time.Second)
+	}
 	light(shouldBeOn)
 }
