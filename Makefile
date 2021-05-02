@@ -4,7 +4,7 @@ on-air: quickstart.go
 	go build
 
 install: on-air
-	mkdir ~/on-air/
+	mkdir -p ~/on-air/
 	sudo cp on-air /usr/local/bin/
 
 clean: 

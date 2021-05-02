@@ -169,17 +169,15 @@ func main() {
 	var secondsToWait int
 	now := time.Now()
 	for _, bt := range busyTimes {
-		diff := bt.Start.Sub(now.Add(5 * time.Minute))
+		diff := bt.Start.Sub(now)
 		seconds := int(diff.Seconds())
-		if seconds < timeToLightBefore && bt.End.After(now) {
+		if seconds < 60*5 && bt.End.After(now) {
 			shouldBeOn = true
-			secondsToWait = seconds - 30
+			secondsToWait = seconds - timeToLightBefore
 			break
 		}
 	}
-	fmt.Printf("Should light be on: %v\n", shouldBeOn)
-	if shouldBeOn && secondsToWait > 0 {
-		time.Sleep(time.Duration(secondsToWait) * time.Second)
-	}
+	fmt.Printf("Should light be on: %v (%v sleep time)\n", shouldBeOn, secondsToWait)
+	time.Sleep(time.Duration(secondsToWait) * time.Second)
 	light(shouldBeOn)
 }
