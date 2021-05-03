@@ -1,6 +1,10 @@
 [Unit]
-Description=A description of what your service does.
+Description=Monitors webcam activity to trigger a wifi lamp
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=/usr/local/bin/on-air
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

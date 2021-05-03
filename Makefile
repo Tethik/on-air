@@ -6,16 +6,15 @@ on-air: quickstart.go
 install: on-air
 	mkdir -p ~/on-air/
 	sudo cp on-air /usr/local/bin/
-
-clean: 
-	sudo rm on-air /usr/local/bin/on-air
-	systemctl stop onair.timer
-	systemctl disable onair.timer
-	rm ~/.config/systemd/user/onair.*
-	systemctl daemon-reload	
-
-timers:
 	cp systemd/* ~/.config/systemd/user/
 	systemctl --user daemon-reload	
-	systemctl --user start onair.timer
-	systemctl --user enable onair.timer
+	systemctl --user start onair.service
+	systemctl --user enable onair.service
+
+clean: 	
+	systemctl --user stop onair.service
+	systemctl --user disable onair.service
+	rm ~/.config/systemd/user/onair.*
+	systemctl --user daemon-reload	
+	sudo rm on-air /usr/local/bin/on-air
+

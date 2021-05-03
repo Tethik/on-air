@@ -1,130 +1,22 @@
 package main
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
+	"os/exec"
+	"os/signal"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/vikstrous/zengge-lightcontrol/control"
 	"github.com/vikstrous/zengge-lightcontrol/local"
-	"golang.org/x/net/context"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/calendar/v3"
 )
 
-// Retrieve a token, saves the token, then returns the generated client.
-func getClient(config *oauth2.Config) *http.Client {
-	// The file token.json stores the user's access and refresh tokens, and is
-	// created automatically when the authorization flow completes for the first
-	// time.
-	tokFile := "token.json"
-	tok, err := tokenFromFile(tokFile)
-	if err != nil {
-		tok = getTokenFromWeb(config)
-		saveToken(tokFile, tok)
-	}
-	return config.Client(context.Background(), tok)
-}
-
-// Request a token from the web, then returns the retrieved token.
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
-	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Printf("Go to the following link in your browser then type the "+
-		"authorization code: \n%v\n", authURL)
-
-	var authCode string
-	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("Unable to read authorization code: %v", err)
-	}
-
-	tok, err := config.Exchange(context.TODO(), authCode)
-	if err != nil {
-		log.Fatalf("Unable to retrieve token from web: %v", err)
-	}
-	return tok
-}
-
-// Retrieves a token from a local file.
-func tokenFromFile(file string) (*oauth2.Token, error) {
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	tok := &oauth2.Token{}
-	err = json.NewDecoder(f).Decode(tok)
-	return tok, err
-}
-
-// Saves a token to a file path.
-func saveToken(path string, token *oauth2.Token) {
-	fmt.Printf("Saving credential file to: %s\n", path)
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		log.Fatalf("Unable to cache oauth token: %v", err)
-	}
-	defer f.Close()
-	json.NewEncoder(f).Encode(token)
-}
-
-type BusyTime struct {
-	Start time.Time
-	End   time.Time
-}
-
-func fetchEvents(client *http.Client) (times []*BusyTime) {
-	srv, err := calendar.New(client)
-	if err != nil {
-		log.Fatalf("Unable to retrieve Calendar client: %v", err)
-	}
-
-	t := time.Now().Format(time.RFC3339)
-
-	fmt.Println(t)
-	max := time.Now().Add(time.Hour * 2).Format(time.RFC3339)
-
-	// Fetch the user's calendars. TODO: allow user to specify which calendars to monitor for busy-ness.
-	ls, err := srv.CalendarList.List().ShowDeleted(false).Do()
-	if err != nil {
-		log.Fatalf("Unable to retrieve users calendars %v", err)
-	}
-
-	var calIds []*calendar.FreeBusyRequestItem
-	for _, item := range ls.Items {
-		// fmt.Println(item.Id)
-		calIds = append(calIds, &calendar.FreeBusyRequestItem{Id: item.Id})
-	}
-
-	res, err := srv.Freebusy.Query(&calendar.FreeBusyRequest{TimeMin: t, TimeMax: max, Items: calIds}).Do()
-	if err != nil {
-		log.Fatalf("Unable to fetch free-busy user's events: %v", err)
-	}
-
-	fmt.Println()
-	for _, cal := range res.Calendars {
-		for _, busyTime := range cal.Busy {
-			fmt.Println(busyTime.Start, busyTime.End)
-			start, err := time.Parse(time.RFC3339, busyTime.Start)
-			if err != nil {
-				log.Println("Warn: failed to parse start time " + busyTime.Start)
-			}
-			end, err := time.Parse(time.RFC3339, busyTime.End)
-			if err != nil {
-				log.Println("Warn: failed to parse end time" + busyTime.End)
-			}
-			times = append(times, &BusyTime{start, end})
-		}
-	}
-	fmt.Println()
-	return
-}
-
-func light(on bool) {
+func setLight(on bool) {
+	log.Printf("Light: %v", on)
 	host := "192.168.1.103:5577"
 	transport, err := local.NewTransport(host)
 	if err != nil {
@@ -133,51 +25,50 @@ func light(on bool) {
 
 	controller := &control.Controller{transport}
 	controller.SetPower(on)
+	controller.Close()
 }
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
 }
 
+func setupInterruptHandler() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("\r- Ctrl+C pressed in Terminal")
+		setLight(false)
+		os.Exit(0)
+	}()
+}
+
 func main() {
-	home, err := os.UserHomeDir()
+	// home, err := os.UserHomeDir()
+	// panicIf(err)
+
+	setupInterruptHandler()
+
+	cmd := exec.Command("inotifywait", "/dev/video0", "-q", "-e", "close", "-e", "open", "-m")
+	stdout, err := cmd.StdoutPipe()
+	panicIf(err)
+	err = cmd.Start()
 	panicIf(err)
 
-	dir := fmt.Sprintf("%v/onair/", home)
-	log.Println(dir)
-	err = os.Chdir(dir)
-	panicIf(err)
+	scanner := bufio.NewScanner(stdout)
 
-	b, err := ioutil.ReadFile("credentials.json")
-	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
-	}
-
-	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, calendar.CalendarReadonlyScope)
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-	client := getClient(config)
-
-	busyTimes := fetchEvents(client)
-	fmt.Printf("%v events found\n", len(busyTimes))
-	shouldBeOn := false
-	timeToLightBefore := 30
-	var secondsToWait int
-	now := time.Now()
-	for _, bt := range busyTimes {
-		diff := bt.Start.Sub(now)
-		seconds := int(diff.Seconds())
-		if seconds < 60*5 && bt.End.After(now) {
-			shouldBeOn = true
-			secondsToWait = seconds - timeToLightBefore
-			break
+	for scanner.Scan() {
+		line := scanner.Text()
+		log.Println(line)
+		if strings.Contains(line, "OPEN") {
+			setLight(true)
+		} else if strings.Contains(line, "CLOSE") {
+			setLight(false)
 		}
 	}
-	fmt.Printf("Should light be on: %v (%v sleep time)\n", shouldBeOn, secondsToWait)
-	time.Sleep(time.Duration(secondsToWait) * time.Second)
-	light(shouldBeOn)
+
+	// Hack to allow interrupt handler to exit the application
+	time.Sleep(3 * time.Second)
 }
