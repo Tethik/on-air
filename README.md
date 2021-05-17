@@ -1,5 +1,7 @@
 # On Air
 
+![what it looks like](./demo.jpg)
+
 Connects the webcam of my computer to my "on-air" sign. It toggles our cheap wifi lamp dongle thingy (https://github.com/vikstrous/zengge-lightcontrol) on or off, based on whether or not my webcam is active.
 
 IP and device file are hardcoded for now, because I'm too lazy to make it into configuration.
