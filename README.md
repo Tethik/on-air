@@ -4,8 +4,6 @@
 
 Connects the webcam of my computer to my "on-air" sign. It toggles our cheap wifi lamp dongle thingy (https://github.com/vikstrous/zengge-lightcontrol) on or off, based on whether or not my webcam is active.
 
-IP and device file are hardcoded for now, because I'm too lazy to make it into configuration.
-
 ## Install
 
 Running the application requires that you have `inotifywait` and `fuser` installed. Also Linux, most likely 🐧
