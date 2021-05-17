@@ -1,4 +1,4 @@
-package main
+package lib
 
 import (
 	"bufio"
@@ -7,16 +7,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/viper"
 	"github.com/vikstrous/zengge-lightcontrol/control"
 	"github.com/vikstrous/zengge-lightcontrol/local"
 )
 
-func setLight(on bool) {
+func SetLight(on bool) {
 	log.Printf("Light: %v", on)
-	host := "192.168.1.103:5577"
+	host := viper.GetString("host")
+
+	if len(host) == 0 {
+		log.Println("WARN: host is undefined. Have you created the configuration file? ", viper.ConfigFileUsed())
+		return
+	}
+
 	transport, err := local.NewTransport(host)
 	if err != nil {
-		log.Println("WARN: Failed to connect.")
+		log.Printf("WARN: Failed to connect to %s\n", host)
 		return
 	}
 
@@ -31,19 +38,25 @@ func panicIf(err error) {
 	}
 }
 
-func verifyAndToggleLight() {
-	cmd := exec.Command("fuser", "/dev/video0")
+func VerifyAndToggleLight() {
+	device := viper.GetString("device")
+	if len(device) == 0 {
+		log.Println("WARN: device is undefined. Have you created the configuration file?")
+		return
+	}
+	cmd := exec.Command("fuser", device)
 	out, err := cmd.Output()
-	setLight(err == nil && string(out) != "")
+	SetLight(err == nil && string(out) != "")
 }
 
-func main() {
+func Daemon() {
 	// home, err := os.UserHomeDir()
 	// panicIf(err)
 
-	verifyAndToggleLight()
+	VerifyAndToggleLight()
 
-	cmd := exec.Command("inotifywait", "/dev/video0", "-q", "-e", "close", "-e", "open", "-m")
+	device := viper.GetString("device")
+	cmd := exec.Command("inotifywait", device, "-q", "-e", "close", "-e", "open", "-m")
 	stdout, err := cmd.StdoutPipe()
 	panicIf(err)
 	err = cmd.Start()
@@ -60,7 +73,7 @@ func main() {
 			if timer != nil {
 				timer.Stop()
 			}
-			timer = time.AfterFunc(2*time.Second, verifyAndToggleLight)
+			timer = time.AfterFunc(2*time.Second, VerifyAndToggleLight)
 		}
 	}
 }

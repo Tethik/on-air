@@ -3,7 +3,7 @@ Description=Monitors webcam activity to trigger a wifi lamp
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/on-air
+ExecStart=/usr/local/bin/on-air daemon
 Restart=on-failure
 
 [Install]
