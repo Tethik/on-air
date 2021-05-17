@@ -8,9 +8,13 @@ IP and device file are hardcoded for now, because I'm too lazy to make it into c
 
 ## Install
 
+Running the application requires that you have `inotifywait` and `fuser` installed. Also Linux, most likely 🐧
+
+Golang is needed to compile it.
+
 ```sh
 $ make
-$ make install # installs the application as a systemd user service
+$ make install # installs the application
 $ make install-service # installs application as a service
 ```
 
