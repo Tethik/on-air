@@ -36,3 +36,4 @@ Use "on-air [command] --help" for more information about a command.
 
 - [ ] More Testing IRL
 - [ ] Support for multiple computers on the same local network
+- [ ] detect microphone usage
