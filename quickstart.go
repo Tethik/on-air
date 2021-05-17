@@ -2,13 +2,9 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"log"
-	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/vikstrous/zengge-lightcontrol/control"
@@ -20,7 +16,8 @@ func setLight(on bool) {
 	host := "192.168.1.103:5577"
 	transport, err := local.NewTransport(host)
 	if err != nil {
-		log.Panicf("Failed to connect. %s", err)
+		log.Println("WARN: Failed to connect.")
+		return
 	}
 
 	controller := &control.Controller{transport}
@@ -34,22 +31,17 @@ func panicIf(err error) {
 	}
 }
 
-func setupInterruptHandler() {
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		fmt.Println("\r- Ctrl+C pressed in Terminal")
-		setLight(false)
-		os.Exit(0)
-	}()
+func verifyAndToggleLight() {
+	cmd := exec.Command("fuser", "/dev/video0")
+	out, err := cmd.Output()
+	setLight(err == nil && string(out) != "")
 }
 
 func main() {
 	// home, err := os.UserHomeDir()
 	// panicIf(err)
 
-	setupInterruptHandler()
+	verifyAndToggleLight()
 
 	cmd := exec.Command("inotifywait", "/dev/video0", "-q", "-e", "close", "-e", "open", "-m")
 	stdout, err := cmd.StdoutPipe()
@@ -59,16 +51,16 @@ func main() {
 
 	scanner := bufio.NewScanner(stdout)
 
+	var timer *time.Timer
+
 	for scanner.Scan() {
 		line := scanner.Text()
 		log.Println(line)
-		if strings.Contains(line, "OPEN") {
-			setLight(true)
-		} else if strings.Contains(line, "CLOSE") {
-			setLight(false)
+		if strings.Contains(line, "OPEN") || strings.Contains(line, "CLOSE") {
+			if timer != nil {
+				timer.Stop()
+			}
+			timer = time.AfterFunc(2*time.Second, verifyAndToggleLight)
 		}
 	}
-
-	// Hack to allow interrupt handler to exit the application
-	time.Sleep(3 * time.Second)
 }
